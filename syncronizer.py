@@ -2,7 +2,7 @@ import subprocess
 import time
 import random
 
-
+# TEST
 # This class for subprocessing "listeners" (sockets for new users), control their attributes,
 # get messages from chat files etc
 class User():
