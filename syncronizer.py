@@ -1,8 +1,8 @@
 import subprocess
 import time
 import random
+import os
 
-# TEST
 # This class for subprocessing "listeners" (sockets for new users), control their attributes,
 # get messages from chat files etc
 class User():
@@ -15,14 +15,18 @@ class User():
         self.msg_id = 0
         self.process = None
         self.proc_pid = 0
+        self.chat_file_name = ''
 
     # creating new subprocess for new "listener" and drop it's console output to NULL, we don't need it
     def start_proc(self, port_num):
         self.user_port = port_num
         self.process = subprocess.Popen(
-            "python listener.py {} {}".format(port_num, 'chat'+port_num+'.txt'),
+            "python listener.py {} {}".format(port_num, 'chat-'+port_num+'.tmp'),
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
+        # remember chat filename
+        self.chat_file_name = 'chat'+port_num+'.tmp'
+        # subprocess object we create
         self.proc_pid = self.process.pid
         # checking subprocess work status by method
         return self.check_proc()
@@ -33,10 +37,15 @@ class User():
 
     # checking subprocess status, (if None - it's still working), connection user status
     def check_proc(self):
+        # process still working?
         if self.process.poll() is None:
             self.working = True
         else:
             self.working = False
+
+        # let's check user connection by looking for chat_name.tmp file
+        if self.chat_file_name in os.listdir(path='.'):
+            self.connected = True
         return [self.working, self.connected]
 
     # if we need to understand what's going on - get all attributes
@@ -50,8 +59,6 @@ class User():
         print('process', self.process)
         print('proc_pid', self.proc_pid)
 
-
-
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 
@@ -59,9 +66,15 @@ class User():
 processes = []
 # номера портов
 # ports_list = ['25901', '25902', '25903', '25904', '25905', '25906', '25907', '25908', '25909', '25910']
-ports_list = ['25901', '25902']
+ports_list = ['25901']
 # последнее сообщение, порт, ник
 users = []
+
+# we should delete all old .tmp files with old chat logs.
+list_tmp_files = [x for x in os.listdir(path='.') if x.endswith('.tmp')]
+for tmp_file in list_tmp_files:
+    os.remove(tmp_file)
+
 
 for port in ports_list:
     # # стартуем процессы
@@ -77,11 +90,11 @@ for port in ports_list:
 print(users)
 
 for user in users:
-    print(user.check_proc())
-    time.sleep(3.0)
+    print('before kill',user.check_proc())
+    time.sleep(10.0)
     print('kill!')
     user.stop_proc()
-    # process[0].kill()
+    print('after kill',user.check_proc())
 
 
 print('END')
