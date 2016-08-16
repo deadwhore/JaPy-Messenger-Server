@@ -124,18 +124,18 @@ def lstnr_print2json(chat_filename, port, string):
 
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-# # получаем данные из параметров вызова
-# parser = argparse.ArgumentParser()
-# parser.add_argument("port")
-# parser.add_argument("file")
-# args = parser.parse_args()
-# # назначаем переменным данные из параметров
-# sock_port = int(args.port)
-# chat_file_name = args.file
+# получаем данные из параметров вызова
+parser = argparse.ArgumentParser()
+parser.add_argument("port")
+parser.add_argument("file")
+args = parser.parse_args()
+# назначаем переменным данные из параметров
+sock_port = int(args.port)
+chat_file_name = args.file
 
 # # если надо работать с программой вручную
-sock_port = 25901
-chat_file_name = "chat-" + str(sock_port) + ".tmp"
+# sock_port = 25901
+# chat_file_name = "chat-" + str(sock_port) + ".tmp"
 
 # with open(chat_file_name, 'w', encoding='utf-8') as chat_file:
 sock = socket.socket()
