@@ -1,5 +1,7 @@
 - remove date and time from messages from client OR NOT?
 - start msg_id from 1
+- need to decrease number of FOR loops by dragging work zone to first FOR loop
 
 10.08.2016
     creating chat file only after connecting - it will be shows to syncronizer that user is connected
+

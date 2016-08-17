@@ -119,7 +119,8 @@ def lstnr_print2json(chat_filename, port, string):
          'msg_id': msg_id,
          'srv': srv,
          'user_nick': user,
-         'lstnr_time': date}
+         'lstnr_time': date,
+         'msg_text': string}
     ))
 
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

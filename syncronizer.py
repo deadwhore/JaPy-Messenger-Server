@@ -2,17 +2,22 @@ import subprocess
 import time
 import random
 import os
+import json
+import sqlite3
+
 
 # This class for subprocessing "listeners" (sockets for new users), control their attributes,
 # get messages from chat files etc
 class User():
     def __init__(self, id):
         self.user_id = id
+        self.user_ip = ''
         self.user_nick = ''
         self.user_port = ''
         self.working = False
         self.connected = False
         self.msg_id = 0
+        # subprocess object!
         self.process = None
         self.proc_pid = 0
         self.chat_file_name = ''
@@ -49,7 +54,36 @@ class User():
             # let's check user connection by looking for chat_name.tmp file
             if self.chat_file_name in os.listdir(path='.'):
                 self.connected = True
+                # and let's take IP of connected client
+                with open(self.chat_file_name, 'r') as chat_file:
+                    for line in chat_file.readlines():
+                        deserial_line = json.loads(line)
+                        if 'User connected from' in deserial_line['msg_text']:
+                            self.user_ip = deserial_line['msg_text'][20:]
+                            chat_file.close()
+                            print('IP -', self.user_ip)
+                            break
         return [self.working, self.connected]
+
+    # getting messages from chat file
+    def get_msg(self):
+        with open(self.chat_file_name, 'r') as chat_file:
+            # list of all messages
+            msg_read = list()
+            # list of last messages
+            msg_last = list()
+            for line in chat_file.readlines():
+                # convert json strings to dict and add them to list
+                msg_read.append(json.loads(line))
+            chat_file.close()
+
+            # have to parse list of messages to control msg_id and return only newest messages
+            for msg in msg_read:
+                if msg['msg_id'] > self.msg_id:
+                    msg_last.append(msg)
+                    self.msg_id = msg['msg_id']
+
+            return msg_last
 
     # if we need to understand what's going on - get all attributes
     def show_attr(self):
@@ -64,14 +98,10 @@ class User():
             'proc_pid': self.proc_pid
         }
 
-        # print('user_id ', self.user_id)
-        # print('user_nick ', self.user_nick)
-        # print('user_port ', self.user_port)
-        # print('establish', self.working)
-        # print('connected', self.connected)
-        # print('msg_id', self.msg_id)
-        # print('process', self.process)
-        # print('proc_pid', self.proc_pid)
+
+# sorting dictionaries by date
+def sort_by_date(input_dict):
+    return input_dict['lstnr_time']
 
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -82,6 +112,11 @@ ports_list = ['25901', '25902', '25903']
 ports_avail = [False, False, False]
 # list of user=processes=ports=messages=etc
 users = []
+# list of last messages
+lst_raw = list()
+# syncronized chat file name
+sync_chat_file_name = 'chat.txt'
+
 
 # we should delete all old .tmp files with old chat logs.
 list_tmp_files = [x for x in os.listdir(path='.') if x.endswith('.tmp')]
@@ -100,69 +135,101 @@ if new_user.check_proc()[0]:
     ports_avail[0] = True
 
 i = 0
-# starting working loop
-while i < 10:
-    print('!!!! NEW LOOP !!!!')
-    # checking how many ports are busy
-    ports_busy = 0
-    # and how many processes are
-    process_active = 0
-    for user in users:
-        print(user.show_attr()['user_port'])
-        print(user.check_proc())
-        checking_result = user.check_proc()
-        if checking_result[1]:
-            ports_busy += 1
-        if checking_result[0]:
-            process_active += 1
 
-    print(ports_busy, 'port(s) busy and', process_active, 'processes active')
-    # if all ports are busy we should open new port
-    if ports_busy == len(users):
-        print('Creating new listener')
-        # let's find out next free port from ports_list
-        next_port = None
-        port_number = 0
-        for port in ports_avail:
-            if port is False:
-                next_port = ports_list[ports_avail.index(port)]
-                break
-            port_number += 1
+# open resulting chat file where was all chat
+with open(sync_chat_file_name, 'a') as chat_file:
+    # starting working loop
+    while i < 10:
+        # clear list of last messages
+        lst_raw = []
 
-        # if we got next free port:
-        if next_port is not None:
-            new_user = User(random.randint(0, 100))
-            users.append(new_user)
-
-            # checking subprocess starting if OK - change False state of ports_avail to True
-            new_user.start_proc(next_port)
-            # add +1 to active processes or it will be killed
-            process_active += 1
-            if new_user.check_proc()[0]:
-                ports_avail[port_number] = True
-
-    time.sleep(3.0)
-    i += 1
-
-    # working zone
-
-    # if we have more users than subprocesses let's deleting from user array useless objects
-    if len(users) > process_active:
+        print('!!!! NEW LOOP !!!!')
+        # checking how many ports are busy
+        ports_busy = 0
+        # and how many processes are
+        process_active = 0
         for user in users:
-            if user.check_proc()[0] is False:
-                # get port of usefull (closed) subprocess
-                user_port = user.show_attr()['user_port']
-                print('removing listener', user_port)
-                # change port status to False
-                ports_avail[ports_list.index(user_port)] = False
-                # and remove object from array
-                users.remove(user)
-                # removing chat file from disk
-                os.remove('chat-'+user_port+'.tmp')
+            checking_result = user.check_proc()
+            print(user.show_attr()['user_port'])
+            print(checking_result)
+            if checking_result[1]:
+                ports_busy += 1
 
+                # working zone starts here! =)
+                # vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
+                # getting all last messages from files
+                msgs = user.get_msg()
+                if isinstance(msgs, list):
+                    for dic in msgs:
+                        lst_raw.append(dic)
+                else:
+                    lst_raw.append(msgs)
 
-time.sleep(10.0)
+                # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                # working zone stops here! =(
+
+            if checking_result[0]:
+                process_active += 1
+
+        # sorting all messages if new comes
+        if len(lst_raw) > 0:
+            lst_raw.sort(key=sort_by_date)
+            for msg in lst_raw:
+                chat_file.write('\n' + json.dumps(msg))
+            chat_file.flush()
+        else:
+            print('no new msgs??')
+
+        print(ports_busy, 'port(s) busy and', process_active, 'processes active')
+        # if all ports are busy we should open new port
+        if ports_busy == len(users):
+            print('Creating new listener')
+            # let's find out next free port from ports_list
+            next_port = None
+            port_number = 0
+            for port in ports_avail:
+                if port is False:
+                    next_port = ports_list[ports_avail.index(port)]
+                    break
+                port_number += 1
+
+            # if we got next free port:
+            if next_port is not None:
+                new_user = User(random.randint(0, 100))
+                users.append(new_user)
+
+                # checking subprocess starting if OK - change False state of ports_avail to True
+                new_user.start_proc(next_port)
+                # add +1 to active processes or it will be killed
+                process_active += 1
+                if new_user.check_proc()[0]:
+                    ports_avail[port_number] = True
+
+        time.sleep(3.0)
+        i += 1
+
+        # if we have more users than subprocesses let's deleting from user array useless objects
+        if len(users) > process_active:
+            for user in users:
+                if user.check_proc()[0] is False:
+                    # get port of usefull (closed) subprocess
+                    user_port = user.show_attr()['user_port']
+                    print('removing listener', user_port)
+                    # change port status to False
+                    ports_avail[ports_list.index(user_port)] = False
+                    # and remove object from array
+                    users.remove(user)
+                    # removing chat file from disk
+                    try:
+                        os.remove('chat-'+user_port+'.tmp')
+                    except OSError:
+                        print("ERROR: try to delete chat file, but can't found it")
+
+    chat_file.close()
+
+print('Loops ENDED')
+time.sleep(6.0)
 
 # stopping processes
 for user in users:
