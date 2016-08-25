@@ -7,11 +7,19 @@ import time
 
 
 def telprint(connection, telsend):
+    print('>>> SENDING: ' + telsend)
     # отсылаем строку
     telsend += '\r\n'
     try:
-        connection.send(telsend.encode(encoding='utf-8', errors='strict'))
-        return True
+        # with open('log.txt', 'a') as log:
+        #     if isinstance(telsend, list):
+        #         for elem in telsend:
+        #             log.write(elem)
+        #         else:
+        #             log.write(telsend)
+            connection.send(telsend.encode(encoding='utf-8', errors='strict'))
+            # log.close()
+            return True
     except ConnectionResetError:
         print('Remote host disconnected!')
         return False
@@ -22,10 +30,10 @@ def telprint(connection, telsend):
 
 def telinput(connection, chat_file):
     # рисуем курсор
-    try:
-        connection.send('> '.encode(encoding='utf-8', errors='strict'))
-    except ConnectionAbortedError:
-        return ["Remote host disconnected!", False]
+    # try:
+    #     connection.send('> '.encode(encoding='utf-8', errors='strict'))
+    # except ConnectionAbortedError:
+    #     return ["Remote host disconnected!", False]
     # создаём переменную, в которую будем сливать декодированные данные
     data_utf = ''
 
@@ -108,20 +116,63 @@ def get_time():
 
 
 # to provide some listener information to file in json
-def lstnr_print2json(chat_filename, port, string):
+def lstnr_print2json(chat_filename, id, port, string):
     date = get_time()
-    msg_id = 0
+    msg_id = id
     cl_time = 'Unknown'
     srv = True
     user = 'Listener' + str(port)
     chat_write(chat_filename, json.dumps(
         {'cl_time': cl_time,
          'msg_id': msg_id,
-         'srv': srv,
+         'srv_tag': srv,
          'user_nick': user,
          'lstnr_time': date,
          'msg_text': string}
     ))
+
+
+# to send some service information to client
+def lstnr_send_srv(port, string):
+    date = get_time()
+    msg_id = 0
+    cl_time = 'Unknown'
+    srv = True
+    user = 'Listener' + str(port)
+    return json.dumps(
+        [{'cl_time': cl_time,
+         'msg_id': msg_id,
+         'srv_tag': srv,
+         'user_nick': user,
+         'lstnr_time': date,
+         'msg_text': string}]
+    )
+
+
+# open syncronized chat and get new messages
+def get_new_messages(msg_id):
+    # flag of new messages
+    new_msg_flag = False
+    # start find from ours last msg id
+    num_srv_msg_id = msg_id
+    # new empty string
+    messages = []
+    with open('chat.txt', 'r') as chat_file:
+        for line in chat_file.readlines():
+            # deserialize json
+            deserial_line = json.loads(line)
+            # got a new message?
+            if deserial_line['srv_msg_id'] > num_srv_msg_id:
+                print('NEW MESSAGE')
+                new_msg_flag = True
+                # messages.append(json.dline.strip())
+                messages.append(deserial_line)
+                num_srv_msg_id = deserial_line['srv_msg_id']
+    chat_file.close()
+    if new_msg_flag:
+        return [json.dumps(messages), num_srv_msg_id]
+    else:
+        return ['', num_srv_msg_id]
 
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -133,6 +184,8 @@ args = parser.parse_args()
 # назначаем переменным данные из параметров
 sock_port = int(args.port)
 chat_file_name = args.file
+# number of message in global chat
+srv_msg_id = 0
 
 # # если надо работать с программой вручную
 # sock_port = 25901
@@ -159,13 +212,18 @@ try:
     conn.settimeout(600)
     with open(chat_file_name, 'w', encoding='utf-8') as chat_file:
         print("User connected from " + address[0])
-        lstnr_print2json(chat_file, sock_port, "User connected from " + address[0])
+        lstnr_print2json(chat_file, 0, sock_port, "User connected from " + address[0])
 
         # ждём ввода каких-нибудь первых данных и пишем приветствие.
         # ждём данных потому что путти сразу посылает какие-то служебные данные
-        conn_init = telinput(conn, chat_file)
-        if conn_init[0]['msg_text'] == "INIT_SOCK":
-            telprint(conn, 'INIT_ACCP')
+        # conn_init = telinput(conn, chat_file)
+        # if conn_init[0]['msg_text'] == "INIT_SOCK":
+        #     # telprint(conn, '["{\"srv_tag\": true, \"srv_msg_id\": 1, \"msg_text\": \"INIT_SOCK\", \"cl_time\": '
+        #     #                '\"2016-08-22 13:45:18\", \"lstnr_time\": \"2016-08-22 13:45:39\", \"user_nick\": '
+        #     #                '\"makzxz\"}"]')
+        #     telprint(conn, '\"{\"srv_tag\": true, \"srv_msg_id\": 1, \"msg_text\": \"INIT_SOCK\"}\"')
+        #     # telprint(conn, '{paramsArray: [\"first\", 100], "paramsObj: {one: \"two\", three: \"four\"}, "paramsStr": '
+        #     #                '\"some string\"}')
 
         # стартуем цикл принятия первых данных
         enter = ['', True]
@@ -178,15 +236,30 @@ try:
                 if enter[0]['msg_text'].strip() == "exit":
                     print('User exits')
                 # данные получены
-                elif telprint(conn, "You write to me: [" + enter[0]['msg_text'] + "], asshole!"):
-                    continue
+                else:
+                    new_messages = get_new_messages(srv_msg_id)
+                    # we have new messages?
+                    print('LEN of new msg', len(new_messages[0]))
+                    if len(new_messages[0]) > 0:
+                        srv_msg_id = new_messages[1]
+                        telprint(conn, new_messages[0])
+                    # telprint(conn, '[{"cl_time": "2016-08-22 13:45:21", "user_nick": "makzxz", "srv_tag": true, '
+                    #                '"msg_text": "UPDATE_REQUEST", "srv_msg_id": 3, "lstnr_time": "2016-08-22 '
+                    #                '13:45:42"}, {"cl_time": "2016-08-22 13:45:21", "user_nick": "makzxz", "srv_tag": '
+                    #                'true, "msg_text": "UPDATE_HUQUEST", "srv_msg_id": 3, "lstnr_time": "2016-08-22 '
+                    #                '13:45:42"}]')
+                        continue
+                    else:
+                        print(lstnr_send_srv(sock_port, 'NO_NEW_MESSAGES'))
+                        telprint(conn, lstnr_send_srv(sock_port, 'NO_NEW_MESSAGES'))
+                        continue
                 break
             else:
                 break
 
         print('-----------------------------------')
         print('Session closed')
-        lstnr_print2json(chat_file, sock_port, "User disconnected")
+        lstnr_print2json(chat_file, -1, sock_port, "User disconnected")
 
 finally:
     # завершаем подключение и сокет
