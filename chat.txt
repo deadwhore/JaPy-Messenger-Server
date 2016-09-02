@@ -1,0 +1,3 @@
+{"lstnr_time": "2016-09-02 11:36:7", "srv_tag": true, "msg_text": "Open new chat file", "srv_msg_id": 0, "cl_time": "Unknown", "user_nick": "srv"}
+{"cl_id": 20, "srv_msg_id": 1, "srv_tag": true, "lstnr_time": "2016-09-02 11:36:10", "cl_time": "2016-09-02 04:36:15", "msg_text": "COMING!", "user_nick": "droidstudio"}
+{"cl_id": 20, "srv_msg_id": 2, "srv_tag": false, "lstnr_time": "2016-09-02 11:36:28", "cl_time": "2016-09-02 04:36:33", "msg_text": "yyffdghj", "user_nick": "droidstudio"}

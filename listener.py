@@ -86,8 +86,9 @@ def telinput(connection, chat_file):
     from_json = json2string(norm_string)
     from_json['lstnr_time'] = get_time()
 
-    # writing it to chat file and return
-    chat_write(chat_file, json.dumps(from_json))
+    # writing it to chat file if we have not usefull update_request messages and return
+    if from_json['msg_text'] != 'UPDATE_REQUEST':
+        chat_write(chat_file, json.dumps(from_json))
     return [from_json, True]
 
     # chat_write(chat_file, norm_string)
@@ -160,12 +161,12 @@ def get_new_messages(msg_id):
     with open('chat.txt', 'r') as chat_file:
         for line in chat_file.readlines():
             # deserialize json
+            print(line)
             deserial_line = json.loads(line)
             # got a new message?
             if deserial_line['srv_msg_id'] > num_srv_msg_id:
                 print('NEW MESSAGE')
                 new_msg_flag = True
-                # messages.append(json.dline.strip())
                 messages.append(deserial_line)
                 num_srv_msg_id = deserial_line['srv_msg_id']
     chat_file.close()
@@ -176,6 +177,11 @@ def get_new_messages(msg_id):
 
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+# # если надо работать с программой вручную
+# sock_port = 25901
+# chat_file_name = "chat-" + str(sock_port) + ".tmp"
+
+# если работаем в подпроцессорном режиме
 # получаем данные из параметров вызова
 parser = argparse.ArgumentParser()
 parser.add_argument("port")
@@ -184,12 +190,13 @@ args = parser.parse_args()
 # назначаем переменным данные из параметров
 sock_port = int(args.port)
 chat_file_name = args.file
+
+
+
 # number of message in global chat
 srv_msg_id = 0
 
-# # если надо работать с программой вручную
-# sock_port = 25901
-# chat_file_name = "chat-" + str(sock_port) + ".tmp"
+
 
 # with open(chat_file_name, 'w', encoding='utf-8') as chat_file:
 sock = socket.socket()
@@ -201,8 +208,9 @@ try:
 except OSError:
     print('Port ', sock_port, 'is busy!')
 
+sock.setblocking(1)
 # ждём подключения, только один может встать в очередь, остальных кикнет
-sock.listen(1)
+sock.listen(0)
 
 # подключился кто-то
 conn, address = sock.accept()
@@ -216,14 +224,6 @@ try:
 
         # ждём ввода каких-нибудь первых данных и пишем приветствие.
         # ждём данных потому что путти сразу посылает какие-то служебные данные
-        # conn_init = telinput(conn, chat_file)
-        # if conn_init[0]['msg_text'] == "INIT_SOCK":
-        #     # telprint(conn, '["{\"srv_tag\": true, \"srv_msg_id\": 1, \"msg_text\": \"INIT_SOCK\", \"cl_time\": '
-        #     #                '\"2016-08-22 13:45:18\", \"lstnr_time\": \"2016-08-22 13:45:39\", \"user_nick\": '
-        #     #                '\"makzxz\"}"]')
-        #     telprint(conn, '\"{\"srv_tag\": true, \"srv_msg_id\": 1, \"msg_text\": \"INIT_SOCK\"}\"')
-        #     # telprint(conn, '{paramsArray: [\"first\", 100], "paramsObj: {one: \"two\", three: \"four\"}, "paramsStr": '
-        #     #                '\"some string\"}')
 
         # стартуем цикл принятия первых данных
         enter = ['', True]
@@ -231,29 +231,22 @@ try:
         while True:
             # ждём данных
             enter = telinput(conn, chat_file)
-            # проверяем, нет ли ошибок при вводе
+            # checking, no errors in input
             if enter[1]:
-                if enter[0]['msg_text'].strip() == "exit":
-                    print('User exits')
-                # данные получены
+                # service message comes
+                if enter[0]['srv_tag']:
+                    print('SERVICE TAG!')
+                    if enter[0]['msg_text'] == 'COMING!':
+                        lstnr_print2json(chat_file, 0, sock_port, "NEW USER:" + enter[0]['user_nick'])
+                #
+                new_messages = get_new_messages(srv_msg_id)
+                # we have new messages?
+                if len(new_messages[0]) > 0:
+                    srv_msg_id = new_messages[1]
+                    telprint(conn, new_messages[0])
                 else:
-                    new_messages = get_new_messages(srv_msg_id)
-                    # we have new messages?
-                    print('LEN of new msg', len(new_messages[0]))
-                    if len(new_messages[0]) > 0:
-                        srv_msg_id = new_messages[1]
-                        telprint(conn, new_messages[0])
-                    # telprint(conn, '[{"cl_time": "2016-08-22 13:45:21", "user_nick": "makzxz", "srv_tag": true, '
-                    #                '"msg_text": "UPDATE_REQUEST", "srv_msg_id": 3, "lstnr_time": "2016-08-22 '
-                    #                '13:45:42"}, {"cl_time": "2016-08-22 13:45:21", "user_nick": "makzxz", "srv_tag": '
-                    #                'true, "msg_text": "UPDATE_HUQUEST", "srv_msg_id": 3, "lstnr_time": "2016-08-22 '
-                    #                '13:45:42"}]')
-                        continue
-                    else:
-                        print(lstnr_send_srv(sock_port, 'NO_NEW_MESSAGES'))
-                        telprint(conn, lstnr_send_srv(sock_port, 'NO_NEW_MESSAGES'))
-                        continue
-                break
+                    print(lstnr_send_srv(sock_port, 'NO_NEW_MESSAGES'))
+                    telprint(conn, lstnr_send_srv(sock_port, 'NO_NEW_MESSAGES'))
             else:
                 break
 

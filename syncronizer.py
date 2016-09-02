@@ -105,10 +105,11 @@ class User():
 
 
 # deleting msg_id from message and adding srv_msg_id
-def change_msg_to_srv_id(message, id):
+def change_msg_to_srv_id(message, m_id, u_id):
     message.pop('msg_id')
-    message['srv_msg_id'] = id
-    message['cl_id'] = message['user_id']
+    message['srv_msg_id'] = m_id
+    message['cl_id'] = u_id
+    print(message)
     return message
 
 
@@ -216,7 +217,9 @@ if new_user.check_proc()[0]:
 i = 0
 
 # open resulting chat file where was all chat
-with open(sync_chat_file_name, 'a') as chat_file:
+with open(sync_chat_file_name, 'w') as chat_file:
+    chat_file.write('{"lstnr_time": "' + get_time() + '", "srv_tag": true, "msg_text": "Open new chat file", '
+                                                     '"srv_msg_id": 0, "cl_time": "Unknown", "user_nick": "srv"}')
     # starting working loop
     while i < 10:
         # clear list of last messages
@@ -229,8 +232,7 @@ with open(sync_chat_file_name, 'a') as chat_file:
         process_active = 0
         for user in users:
             checking_result = user.check_proc()
-            print(user.show_attr()['user_port'])
-            print(checking_result)
+            print(user.show_attr()['user_port'], " -> ", checking_result)
             if checking_result[1]:
                 ports_busy += 1
 
@@ -242,13 +244,14 @@ with open(sync_chat_file_name, 'a') as chat_file:
                 if isinstance(msgs, list):
                     for dic in msgs:
                         srv_msg_id += 1
-                        lst_raw.append(change_msg_to_srv_id(dic, srv_msg_id))
+                        lst_raw.append(change_msg_to_srv_id(dic, srv_msg_id, user.show_attr()['user_id']))
                 else:
                     srv_msg_id += 1
-                    lst_raw.append(change_msg_to_srv_id(msgs, srv_msg_id))
+                    lst_raw.append(change_msg_to_srv_id(msgs, srv_msg_id, user.show_attr()['user_id']))
 
                 # every 10 msgs commiting database
-                if srv_msg_id % 10 == 0:
+                if srv_msg_id != 0 and srv_msg_id % 10 == 0:
+                    print('%10', srv_msg_id)
                     commit_sql()
 
                 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -266,7 +269,7 @@ with open(sync_chat_file_name, 'a') as chat_file:
         else:
             print('no new msgs??')
 
-        print(ports_busy, 'port(s) busy and', process_active, 'processes active')
+        # print(ports_busy, 'port(s) busy and', process_active, 'processes active')
         # if all ports are busy we should open new port
         if ports_busy == len(users):
             print('Creating new listener')
