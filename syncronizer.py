@@ -221,7 +221,7 @@ with open(sync_chat_file_name, 'w') as chat_file:
     chat_file.write('{"lstnr_time": "' + get_time() + '", "srv_tag": true, "msg_text": "Open new chat file", '
                                                      '"srv_msg_id": 0, "cl_time": "Unknown", "user_nick": "srv"}')
     # starting working loop
-    while i < 10:
+    while i < 40:
         # clear list of last messages
         lst_raw = []
 
@@ -250,6 +250,7 @@ with open(sync_chat_file_name, 'w') as chat_file:
                     lst_raw.append(change_msg_to_srv_id(msgs, srv_msg_id, user.show_attr()['user_id']))
 
                 # every 10 msgs commiting database
+                # print('SRV MSG', srv_msg_id)
                 if srv_msg_id != 0 and srv_msg_id % 10 == 0:
                     print('%10', srv_msg_id)
                     commit_sql()

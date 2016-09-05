@@ -199,7 +199,8 @@ srv_msg_id = 0
 
 
 # with open(chat_file_name, 'w', encoding='utf-8') as chat_file:
-sock = socket.socket()
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 # chat_write(chat_file, 'Open socket ' + str(sock_port))
 
 # с какого IP и порта будут ожидаться подключения, если айпи пуст - со всех возможных адресов
@@ -214,6 +215,7 @@ sock.listen(0)
 
 # подключился кто-то
 conn, address = sock.accept()
+sock.close()
 try:
 
     # ставим таймаут подключения в 10 минут
@@ -258,4 +260,4 @@ finally:
     # завершаем подключение и сокет
     # chat_write(chat_file, "User disconnected ")
     conn.close()
-    sock.close()
+    # sock.close()
